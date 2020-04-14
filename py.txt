@@ -1,0 +1,62 @@
+import requests
+import time
+import datetime
+import json
+import serial
+import time
+
+url_sensor0 = 'http://1.gasdetect.applinzi.com/GasDet/php/sensor0_insert.php'  #post url
+url_sensor1 = 'http://1.gasdetect.applinzi.com/GasDet/php/sensor1_insert.php'  #避免数据库访问冲突，对每个传感器节点分别建表
+count_sensor0 = 1
+count_sensor1 = 1 #节点数据量，用于服务器端获取节点获取的总信息量
+while 1:
+    #串口读取ardurino端节点数据#
+    ser = serial.Serial('COM5', 9600, timeout=1)
+    time.sleep(2)
+    # ser.write("Hello world, shake with arduino")
+    # time.sleep(2)
+    s = ser.read(10)
+    s=str(s, encoding='utf-8')
+    if s.strip!='':
+        # print(s.strip())
+        byte_sensor0 = ser.read(10)
+        str_sensor0 = str(byte_sensor0, encoding='utf-8')
+        send_sensor0 = str_sensor0.strip()
+        print(send_sensor0)
+        byte_sensor1 = ser.read(10)
+        str_sensor1 = str(byte_sensor1, encoding='utf-8')
+        send_sensor1 = str_sensor1.strip()
+        print(send_sensor1)
+        ser.close()
+        # 串口读取ardurino端节点数据#
+
+        # 串口数据处理json格式封装及post请求上传云数据库#
+        now_time = datetime.datetime.now()
+        Time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') #获取节点读取数据的时间，格式为年月日时分秒
+
+        count_sensor0 = str(count_sensor0)
+        data_sensor0 = {'Num': count_sensor0,
+                        'SensorNum':0,
+                        'Location':'Weihai',
+                        'Destiny': send_sensor0[8:10],
+                        'Time': Time}
+        count_sensor0 = int(count_sensor0)
+        count_sensor0 += 1
+        r0 = requests.post(url_sensor0, data=data_sensor0)  #sensor0进行post请求
+        time.sleep(3)
+        print("sensor0:"+str(count_sensor0)+"r0"+str(r0))
+
+        count_sensor1 = str(count_sensor1)
+        data_sensor1 = {'Num': count_sensor1,
+                        'SensorNum':1,
+                        'Location': 'Qingdao',
+                        'Destiny': send_sensor1[8:10],
+                        'Time': Time}
+        count_sensor1 = int(count_sensor1)
+        count_sensor1 += 1
+        r1 = requests.post(url_sensor1, data=data_sensor1)   #sensor1进行post请求
+        time.sleep(3)
+        print("sensor1:" + str(count_sensor1)+"r1"+str(r1))
+        # 串口数据处理json格式封装及post请求上传云数据库#
+
+

@@ -1,0 +1,171 @@
+#include "Arduino.h"
+#include<string.h> 
+#include<math.h>
+#include "Lora.h"
+#include <SPI.h>
+#define Aout0 A0 //MQ-135 模拟输出 接 Arduino Uno A0，节点1
+#define Aout1 A1 //MQ-135 模拟输出 接 Arduino Uno A1,节点2
+#define Aout2 A2 //测量电压模块 模拟输出 接 Arduino Uno A1,节点2
+
+//  11111111 00000001 00000001 00000000 00000000 11111111   
+//    帧头     区域     编号     数值     电压     帧尾
+
+int Qingdao = 1;//区域id，青岛
+int Weihai = 2; //区域id，威海
+int sensorid1 = 1;//传感器编号
+int sensorid2 = 2;//传感器编号
+int Destiny1 = 0; //临时变量，存储A0读取的数据
+int Destiny2 = 0; //临时变量，存储A1读取的数据
+int vc1 = 0;  //临时变量，存储A3读取的电压数据
+int vc2 = 0;  //临时变量，存储A3读取的电压数据
+int temp = 0;
+/*
+十进制转二进制，a为待转参数，i为二进制位数
+*/
+String dec2bin(int num,int weishu)   //
+{
+  int i=weishu-1;
+  String s="00000000";   //数组初始化赋值
+  int j=i;
+  while (i >= 0) {
+    if ((num >> i) & 1)
+      {
+          s[j-i]='1';
+      }
+    else
+      {
+          s[j-i]='0';
+      }
+
+    --i;
+  }
+  return s;  
+}
+/*
+  帧封装函数，将节点数据进行格式封装发送，共六个字节，格式如下:
+   11111111 00000001 00000001 00000000 00000000 11111111   
+     帧头     区域     编号     数值     电压     帧尾
+*/
+String package(int citynum,int sensornum,int destiny,int vc)   //
+{
+  //
+    /*
+  String[] packagedata = {"00000000","00000000","00000000","00000000","00000000"，"00000000"};
+  packageData[0] = "11111111" ;  //帧头
+  packageData[1] = dec2bin(citynum,8);  //区域id
+  packageData[2] = dec2bin(sensornum,8);  //传感器id
+  packageData[3] = dec2bin(destiny,8);  //节点数据，255不够可除10转换
+  packageData[4] = dec2bin(vc,8);  //节点电压值
+  packageData[5] = "11111111"  //帧尾
+  string s="00000000";   //数组初始化赋值
+  */
+  String packagedata="11111111";  //帧头
+  String packageData1 = dec2bin(citynum,8);  //区域id
+  String packageData2 = dec2bin(sensornum,8);  //传感器id
+  String packageData3 = dec2bin(destiny,8);  //节点数据，255不够可除10转换
+  String packageData4 = dec2bin(vc,8);  //节点电压值
+  String packageData5 = "11111111"  ;//帧尾
+  packagedata.concat(packageData1);
+  packagedata.concat(packageData2);
+  packagedata.concat(packageData3);
+  packagedata.concat(packageData4);
+  packagedata.concat(packageData5);
+  
+  return packagedata;  
+}
+
+
+
+void setup() 
+{   
+
+     // put your setup code here, to run once:
+    //Serial.begin(9600);//定义波特率
+    pinMode(Aout0, INPUT);//定义A0为INPUT模式
+    pinMode(Aout1, INPUT);//定义A0为INPUT模式
+    pinMode(Aout2, INPUT);//定义A0为INPUT模式
+    Serial.begin(9600);
+    //Serial.println("Sender");
+    //这里的LoRa是LoraClass的一个实例，在CPP文件中我己经给声明了，直接使用即可
+    while(!LoRa.begin(433E6)) 
+    {
+      Serial.println("Starting LoRa failed!");
+    }
+    //Lora模块的引脚设置在这里只能修改这三个引脚，其中ss和reset可以任意选择IO口，
+    //dio0只能选择2或3，应为只有这两个引脚有外部中断的功能
+    //在begin中已经添加了引脚设置  ss->10 dio0->2 reset->9 sck->13 miso->12 mosi->11
+    //如果使用默认引脚的话就不需要调用下边的这个函数
+    //LoRa.setPins(int ss, int reset, int dio0)
+    Serial.println("Starting LoRa OK!");
+}
+
+void loop()
+{     
+      
+      Destiny1 = analogRead(Aout0); //读取A0的模拟数据
+      Destiny2 = analogRead(Aout1); //读取A0的模拟数据
+      Destiny1 = Destiny1/4;  //
+      Destiny2 = Destiny2/4;  //8位二进制为0-255，浓度峰值为700左右，封装前除4
+      vc1 = analogRead(Aout2); 
+      vc2 = analogRead(Aout2);  //Vc1 Vc2 暂时用一个电压模块
+      vc1 = vc1/4;  // 
+      vc2 = vc2/4;  // 电压模块峰值600左右，封装以前除4
+      String package1 = package(Qingdao,sensorid1,Destiny1,vc1);
+      String package2 = package(Weihai,sensorid2,Destiny2,vc2);  //包2
+      LoRa.beginPacket();
+      delay(1000); //延时1000毫秒
+      if(!temp)
+      { 
+        LoRa.print(package1); //串口输出temp的数据
+        Serial.println(package1);
+        temp = 1;  
+      }
+      else if(temp)
+      {
+        LoRa.print(package2); //串口输出temp的数据
+        Serial.println(package2);
+        temp = 0;
+      }
+      delay(1000); //延时1000毫秒
+      LoRa.endPacket();
+      /*
+      String Destiny0_send="GasDet0:";
+      String Destiny1_send="GasDet1:";
+      Destiny0 = analogRead(Aout0); //读取A0的模拟数据
+      Destiny0_send.concat(String(Destiny0)); 
+      delay(1000); //延时1000毫秒
+      Destiny1 = analogRead(Aout1); //读取A0的模拟数据
+      Destiny1_send  = (Destiny1_send+String(Destiny1)); 
+      delay(1000); //延时1000毫秒
+      LoRa.beginPacket();
+      delay(1000);
+      LoRa.print(Destiny0_send); //串口输出temp的数据
+      delay(1000); //延时500毫秒
+   
+      LoRa.endPacket(); 
+      delay(1000); //延时1000毫秒
+      LoRa.beginPacket();
+      delay(1000);
+      LoRa.print(Destiny1_send); //串口输出temp的数据
+      delay(1000); //延时500毫秒
+   
+      LoRa.endPacket(); 
+      */
+    /*
+    static int counter;
+    counter++;
+    counter %=1000;   //
+    //uint8_t payload[4] = {0b00000001, 0b00000001, 0b63,0b11111111};
+    //单纯的发送只需要一下3步即可
+    LoRa.beginPacket();
+        delay(1000);
+    //这里的write用来发送数组的
+    //LoRa.write(payload, sizeof(payload));    
+    Serial.println(counter);
+    //print()用来发送字符串[不要使用println() 有bug]
+    LoRa.print("Hello"+String(counter));
+    LoRa.endPacket(); 
+    //----------------------------------------------------
+    delay(1000);
+    */
+}
